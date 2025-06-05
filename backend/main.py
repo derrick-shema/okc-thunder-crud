@@ -6,6 +6,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from contextlib import asynccontextmanager
 
+from pydantic import BaseModel
+
 # db path and templates
 DB_PATH = 'players.db'
 templates = Jinja2Templates(directory='templates')
@@ -31,9 +33,10 @@ async def lifespan(app: FastAPI):
 # create app with lifespan
 app = FastAPI(lifespan=lifespan)
 
+class Player(BaseModel):
+    player_name: str
+    position: str
 
-# Mount static directory (make sure this is after app = FastAPI())
-app.mount('/static', StaticFiles(directory='static'), name='static')
 
 # Helper functions: kinda acting like controllers
 def get_players():
@@ -44,12 +47,13 @@ def get_players():
     conn.close()
     return rows
 
-def add_player(player_name: str, position: str):
+def add_player(player_in: Player):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
-    cur.execute("INSERT INTO players (player_name, position) VALUES (?, ?)", (player_name, position))
+    cur.execute("INSERT INTO players (player_name, position) VALUES (?, ?)", (player_in.player_name, player_in.position))
     conn.commit()
     conn.close()
+
 
 # Routes
 @app.get('/', response_class=HTMLResponse)
@@ -57,7 +61,7 @@ def home(request: Request):
     players = get_players()
     return templates.TemplateResponse("home.html", {"request":request, "players":players})
 
-@app.post("/add-player")
-def create(player_name: str = Form(...), position: str = Form(...)):
-    add_player(player_name, position)
+@app.post("/api/add-player")
+def create(request: Request):
+    # add_player(request)
     return RedirectResponse("/", status_code=303)
